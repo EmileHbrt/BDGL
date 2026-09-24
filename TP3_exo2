@@ -1,0 +1,42 @@
+/*
+APNEISTE( id :int, nom :string ,dbirth :date, nationalite : string)
+COMPETITION(id:int ,lieu:str,annee:year)
+EPREUVE(type : enumerate, #compID:int)
+PARTICIPE(duree:int , distance:int, #apID:int, #EpreuveType:enumerate,#compID:int)
+
+Inclusion PARTICIPE(apID) C APNEISTE(id)
+          PARTICIPE( (compID,EpreuveType)) C EPREUVE(type,compID)
+          EPREUVE(compID) C COMPETITION(id)
+*/
+/* Attention ici on créer compétition en 2 car epreuve et donc participe sont dépendant de COMPETITION */
+
+
+CREATE TABLE APNEISTE(
+    id INT PRIMARY KEY,
+    nom VARCHAR(30),
+    dbirth DATE,
+    nationalite VARCHAR(20)
+);
+
+CREATE TABLE COMPETITION(
+    id INT PRIMARY KEY,
+    lieu VARCHAR(30),
+    annee YEAR
+);
+
+CREATE TABLE EPREUVE(
+    type ENUM('STA','DYN','VWT','CWT') PRIMARY KEY,
+    compID INT,
+    CONSTRAINT epreuve_fk1 FOREIGN KEY(compID) REFERENCES COMPETITION(id)
+);
+
+CREATE TABLE PARTICIPE(
+    apID INT,
+    EpreuveType ENUM('STA','DYN','VWT','CWT'),
+    compID INT,
+    duree INT,
+    distance INT, 
+    CONSTRAINT participe_fk1 FOREIGN KEY(EpreuveType) REFERENCES EPREUVE(type),
+    CONSTRAINT participe_fk2 FOREIGN KEY(apID) REFERENCES APNEISTE(id),
+    CONSTRAINT participe_fk3 FOREIGN KEY(compID) REFERENCES COMPETITION(id)
+);
