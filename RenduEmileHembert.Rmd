@@ -1,0 +1,98 @@
+---
+title: "Compte rendu de séance"
+author: "Emile Hembert"
+date: "2026-10-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Partie 1 : recherches
+
+Pour trouver quelle méthode utiliser j'ai simplement taper sur Google et donc Gemini, avec un prompt donnant :
+- Le type de données que nous possédons : expression de différents gène au cours de 36 points de temps.
+- Ce que l'on cherche, former des groupes de gène co-exprimés.
+- Que cette méthode pourait être utilisé en remplacement à WGCNA.
+
+Ensuite j'ai donc trouvé un groupe de méthode que je connaissais déjà et qui me semblait plutot facilement implémentable, le clustering.
+
+Différentes méthodes étaient proposées :
+- Mfuzz
+- TimeToCLust 
+- SplineCluster
+- STME
+- RAIN
+...
+
+Je me suis penché ici sur Mfuzz car il semblait plus facile à mettre en place et se portait bien a nos type de données.
+
+## Partie 2: Ce que je voulais faire et ce que j'ai fait 
+
+Pour mettre en place mfuzz sur les données de "MitoGenes.txt" j'ai tout d'abord vérifier qu'il pourvait bien s'appliquer à ce style de données. (voir l'article suivant dans lequel l'exemple semble similaire à ce que je veux faire)
+Kumar L, E Futschik M. Mfuzz: a software package for soft clustering of microarray data. Bioinformation. 2007 May 20;2(1):5-7. doi: 10.6026/97320630002005. PMID: 18084642; PMCID: PMC2139991.
+
+J'ai ensuite décider de reprendre point par point l'introduction à mfuzz : https://bioconductor.posit.co/packages/3.20/bioc/vignettes/Mfuzz/inst/doc/Mfuzz.pdf
+
+### Méthode
+```{r}
+#importation des données
+expData = read.table("Mito_Genes.txt", header = T, row.names = 1)
+```
+Avant d'appliquer le clustering nous devons un peu modifier les données en les normalisant. Nos données ne sont pas des données et resemble plutot à des intensité d'expression, j'ai alors utilisé la librairie limma en normalisant par quatile puis appliquer une transformation log2.
+
+#### Normalisation des données
+```{r}
+#chargement de la librairie limma 
+library(limma)
+
+#normalisation
+expData_q = normalizeQuantiles(as.matrix(expData))
+expData_n = log2(expData_q +1)
+```
+
+Nous avons maintenant des données pouvant être utilisée a des fins de clustering, et je peux suivre les indication de l'introduction à mfuzz.
+
+#### Création de l'objet mfuzz
+Pour pouvoir utiliser les fonction du packages mfuzz il faut que nos données aient un format particulier, un "ExpressionSet".
+```{r,message=FALSE,warning=FALSE}
+library(Mfuzz)
+#Création de l'objet 
+esetData = new("ExpressionSet",exprs=as.matrix(expData_n))
+```
+
+#### Correction des valeurs manquantes 
+On peut ensuite s'assurer de retirer les valeurs manquantes dans le tableau même si il n'y en a normalement pas.
+```{r}
+data.f = filter.NA(esetData,thres = 0.25)
+```
+Nous pouvons dans certains cas retirer des gènes qui ne varient pas ou qui sont exprimé que très faiblement, et on évite ici un filtre à priori.
+
+#### Standardisation
+Comme la méthode utilise la distance euclidienne la normalisation s'assure que des gènes avec des profil d'expression proche mais avec différentes intensité pourront être détecté comme appartenant au même cluster.
+```{r}
+data.s = standardise(data.f)
+```
+
+#### Clustering 
+Nous pouvons maitenant procéder au clustering, il y a cependant 2 paramètres qu'il faut choisir à priori avec cette méthode.
+- le "fuzzifier" paramtre permettant le chevauchement d'un gène sur plusieurs culster. Il peut être déterminer de manière automatique.
+```{r}
+m_e = mestimate(data.s)
+m_e
+```
+- il y a aussi le nombre de cluster , mais pas de méthode pour déterminer le meilleur, il faudra le faire visuellement à postériori.
+
+Voici un petit test pour un nombre de cluster arbitraire de 5 
+```{r,new.windiw=FALSE}
+cl = mfuzz(data.s,c=5,m=m_e)
+par(mfrow = c(5, 2))
+mfuzz.plot(data.s,cl=cl,mfrow=c(3,2),time.labels=colnames(expData))
+```
+
+on peut voir ici 
+```{r}
+Ov = overlap(cl)
+Ptmp = overlap.plot(cl, over=Ov,thres=0.05)
+```
